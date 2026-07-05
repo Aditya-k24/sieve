@@ -36,13 +36,15 @@ Check `sieve doctor`:
 Run `sieve on` first — it's what stores `real_claude_path` in
 `~/.sieve/config.json`.
 
-## I ran `pip install -e .` and `sieve` can't import itself
+## `sieve` fails with `ModuleNotFoundError: No module named 'sieve'`
 
-This happens if your Python/venv doesn't process `.pth` editable-install
-redirects (seen with some `uv`-managed venvs, which skip full site
-initialization for speed). Fix: use a plain `python3 -m venv .venv` (what
-`install.sh` does) rather than `uv venv`, or fall back to a regular
-`pip install .` (non-editable) if the problem persists.
+`install.sh` uses a regular (non-editable) `pip install .` specifically to
+avoid this: some Python builds don't reliably process `.pth`
+editable-install redirects (seen intermittently even with plain
+`python3 -m venv`, and consistently with `uv`-managed venvs, which skip full
+site initialization for speed). If you installed with `pip install -e .` and
+hit this, reinstall with `pip install .` instead. Re-run after any source
+change if you do use editable mode for development.
 
 ## Uninstalling
 

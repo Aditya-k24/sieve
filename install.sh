@@ -22,9 +22,12 @@ python3 -m venv .venv
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
-echo "Installing Sieve (editable)..."
+echo "Installing Sieve..."
 pip install --quiet --upgrade pip
-pip install --quiet -e .
+# Regular (non-editable) install: some Python builds skip .pth processing for
+# editable installs, which breaks `import sieve` intermittently. A normal
+# install copies the package into site-packages, sidestepping that entirely.
+pip install --quiet .
 
 mkdir -p "$HOME/.sieve/bin"
 python3 -c "from sieve.ledger import ensure_db; ensure_db()"

@@ -60,7 +60,7 @@ instead of guessing.
 ## Setup
 
 ```bash
-./install.sh          # creates .venv, installs sieve editable, inits ledger, runs doctor
+./install.sh          # creates .venv, installs sieve, inits ledger, runs doctor
 source .venv/bin/activate
 sieve on
 ```
