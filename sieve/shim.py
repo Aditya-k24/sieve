@@ -52,6 +52,33 @@ def shim_installed() -> bool:
     return SHIM_PATH.is_file() and os.access(SHIM_PATH, os.X_OK)
 
 
+PATH_MARKER = "# sieve: add shim to PATH"
+
+
+def default_shell_rc() -> Path:
+    """Best-effort guess at the rc file the user's interactive shell sources."""
+    shell = os.environ.get("SHELL", "")
+    home = Path.home()
+    if "zsh" in shell:
+        return home / ".zshrc"
+    if "bash" in shell:
+        bash_profile = home / ".bash_profile"
+        return bash_profile if bash_profile.exists() else home / ".bashrc"
+    return home / ".profile"
+
+
+def persist_path(rc_path: Path) -> bool:
+    """Idempotently appends the shim's PATH export to rc_path.
+    Returns True if a new line was written, False if already present."""
+    existing = rc_path.read_text() if rc_path.exists() else ""
+    if PATH_MARKER in existing:
+        return False
+    rc_path.parent.mkdir(parents=True, exist_ok=True)
+    with rc_path.open("a") as f:
+        f.write(f'\n{PATH_MARKER}\nexport PATH="$HOME/.sieve/bin:$PATH"\n')
+    return True
+
+
 def path_order_correct(path_env: str | None = None) -> bool:
     """True if BIN_DIR appears in PATH before any other 'claude' binary's dir."""
     path_env = path_env if path_env is not None else os.environ.get("PATH", "")

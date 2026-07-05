@@ -54,10 +54,20 @@ def on_command() -> None:
     terminal.console.print(f"Shim installed at: {shim.SHIM_PATH}")
 
     if not shim.path_order_correct():
+        rc_path = shim.default_shell_rc()
+        added = shim.persist_path(rc_path)
+        if added:
+            terminal.console.print(
+                f"\n[yellow]Added Sieve's shim to PATH in {rc_path}.[/yellow]\n"
+                f"Open a new terminal, or run: source {rc_path}"
+            )
+        else:
+            terminal.console.print(
+                f"\n[yellow]PATH entry already in {rc_path} but not active in this shell yet.[/yellow]\n"
+                f"Run: source {rc_path}"
+            )
         terminal.console.print(
-            "\n[yellow]Your PATH doesn't put Sieve's shim first yet.[/yellow] Run:\n"
-            f'  export PATH="{BIN_DIR}:$PATH"\n'
-            "Add that line to your shell profile (~/.zshrc or ~/.bashrc) to make it permanent."
+            f'For this exact shell right now: export PATH="{BIN_DIR}:$PATH"'
         )
 
 

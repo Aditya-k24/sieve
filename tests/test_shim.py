@@ -55,3 +55,18 @@ def test_path_order_correct(tmp_path: Path, monkeypatch):
     bad_path = f"{other_dir}{os.pathsep}{bin_dir}"
     assert shim.path_order_correct(path_env=good_path) is True
     assert shim.path_order_correct(path_env=bad_path) is False
+
+
+def test_persist_path_appends_once(tmp_path: Path):
+    rc_path = tmp_path / ".zshrc"
+    rc_path.write_text("existing config\n")
+
+    assert shim.persist_path(rc_path) is True
+    contents = rc_path.read_text()
+    assert shim.PATH_MARKER in contents
+    assert 'export PATH="$HOME/.sieve/bin:$PATH"' in contents
+
+    # Second call is idempotent — no duplicate line.
+    assert shim.persist_path(rc_path) is False
+    assert contents.count(shim.PATH_MARKER) == rc_path.read_text().count(shim.PATH_MARKER)
+    assert rc_path.read_text().count(shim.PATH_MARKER) == 1
