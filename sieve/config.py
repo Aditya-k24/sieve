@@ -1,0 +1,59 @@
+"""Sieve config: ~/.sieve/config.json + env var overrides."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
+
+SIEVE_HOME = Path(os.environ.get("SIEVE_HOME", "~/.sieve")).expanduser()
+BIN_DIR = SIEVE_HOME / "bin"
+CONFIG_PATH = SIEVE_HOME / "config.json"
+DB_PATH = SIEVE_HOME / "sieve.db"
+SHIM_PATH = BIN_DIR / "claude"
+
+
+class SieveConfig(BaseModel):
+    real_claude_path: str | None = None
+    shim_path: str = str(SHIM_PATH)
+    enabled: bool = False
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5-coder:7b"
+    mode: Literal["auto", "local_only", "claude_only"] = "auto"
+    max_context_chars: int = 20000
+    debug: bool = False
+
+
+def load_config() -> SieveConfig:
+    if CONFIG_PATH.exists():
+        cfg = SieveConfig.model_validate_json(CONFIG_PATH.read_text())
+    else:
+        cfg = SieveConfig()
+
+    # Env vars override the persisted file for a single invocation.
+    overrides: dict[str, str] = {}
+    if v := os.environ.get("SIEVE_MODE"):
+        overrides["mode"] = v
+    if v := os.environ.get("SIEVE_OLLAMA_BASE_URL"):
+        overrides["ollama_base_url"] = v
+    if v := os.environ.get("SIEVE_OLLAMA_MODEL"):
+        overrides["ollama_model"] = v
+    if v := os.environ.get("SIEVE_MAX_CONTEXT_CHARS"):
+        overrides["max_context_chars"] = int(v)
+    if v := os.environ.get("SIEVE_DEBUG"):
+        overrides["debug"] = v.strip().lower() in {"1", "true", "yes", "on"}
+
+    return cfg.model_copy(update=overrides) if overrides else cfg
+
+
+def save_config(cfg: SieveConfig) -> None:
+    SIEVE_HOME.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(cfg.model_dump_json(indent=2))
+
+
+def ensure_sieve_home() -> None:
+    SIEVE_HOME.mkdir(parents=True, exist_ok=True)
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
