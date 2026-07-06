@@ -8,7 +8,7 @@ Claude quota. Complex prompts go to real Claude, untouched. No dashboard, no
 browser, no manual config.
 
 ```bash
-git clone <repo> && cd sieve
+git clone https://github.com/Aditya-k24/sieve.git && cd sieve
 ./install.sh
 sieve on
 claude "what test framework does this repo use?"
@@ -43,7 +43,8 @@ auth, untouched. Full breakdown: [docs/architecture.md](docs/architecture.md),
 - Never touches Claude auth — the real binary runs as a plain subprocess.
 - Doesn't bypass usage limits, just avoids sending Claude requests that
   don't need to go there.
-- One PATH shim, removable anytime with `sieve off`.
+- One PATH shim, removable anytime with `sieve off` — and if sieve itself
+  is ever deleted, the shim falls through to the real `claude` on its own.
 
 "Quota preserved" is an estimate (`len // 4`), not Anthropic's own
 accounting — treat Claude Code's own usage UI as the source of truth.
