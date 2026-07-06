@@ -95,6 +95,34 @@ def test_classify_llm_rejects_invalid_claude_model_tier(monkeypatch):
         pass
 
 
+def test_classify_llm_overrides_low_confidence_local(monkeypatch):
+    # The LLM says "local" but with confidence below the threshold — never
+    # trust it; the enforced floor reroutes to Claude.
+    shaky_json = (
+        '{"route": "local", "complexity": 2, "confidence": 0.3, '
+        '"reason": "maybe a manifest read", "context_mode": "selected_files"}'
+    )
+    monkeypatch.setattr(ollama, "triage", lambda *a, **kw: shaky_json)
+
+    d = classify_llm("what's in package.json?", [], "http://localhost:11434", "qwen2.5-coder:7b")
+    assert d.route == "claude"
+    assert "below threshold" in d.reason
+
+
+def test_classify_llm_rejects_out_of_range_confidence(monkeypatch):
+    bad_json = (
+        '{"route": "local", "complexity": 2, "confidence": 7.5, '
+        '"reason": "x", "context_mode": "selected_files"}'
+    )
+    monkeypatch.setattr(ollama, "triage", lambda *a, **kw: bad_json)
+
+    try:
+        classify_llm("what's in package.json?", [], "http://localhost:11434", "qwen2.5-coder:7b")
+        assert False, "expected TriageError"
+    except TriageError:
+        pass
+
+
 def test_classify_llm_skips_call_on_precheck(monkeypatch):
     def boom(*a, **kw):
         raise AssertionError("should not call ollama.triage when precheck short-circuits")

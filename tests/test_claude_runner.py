@@ -36,6 +36,19 @@ def test_run_claude_skips_override_if_user_already_set_model(monkeypatch):
     assert result.exit_code == 0
 
 
+def test_run_claude_skips_override_with_equals_form(monkeypatch):
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return _FakeCompletedProcess(0)
+
+    monkeypatch.setattr(claude_runner.subprocess, "run", fake_run)
+
+    claude_runner.run_claude("/usr/local/bin/claude", ["--model=opus", "fix the bug"], model_override="sonnet")
+    assert captured["cmd"] == ["/usr/local/bin/claude", "--model=opus", "fix the bug"]
+
+
 def test_run_claude_no_override_when_none(monkeypatch):
     captured = {}
 

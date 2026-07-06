@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sieve import ollama
 
@@ -66,8 +66,10 @@ CLAUDE_MODEL_TIERS = ("haiku", "sonnet", "opus")
 
 class RouteDecision(BaseModel):
     route: Literal["local", "claude"]
-    complexity: int
-    confidence: float
+    # Bounds double as validation of LLM triage output — out-of-range numbers
+    # fail model_validate_json and fall back to the heuristic classifier.
+    complexity: int = Field(ge=1, le=10)
+    confidence: float = Field(ge=0.0, le=1.0)
     reason: str
     context_mode: Literal["prompt_only", "selected_files", "full_claude"]
     # Only set when route == "claude" and triage picked a specific tier via
@@ -156,14 +158,11 @@ def classify(prompt: str | None, raw_args: list[str] | None = None) -> RouteDeci
                 context_mode=context_mode,  # type: ignore[arg-type]
             )
 
-    # Nothing matched either list — ambiguous. Below CONFIDENCE_THRESHOLD always
-    # routes to Claude; the comparison is explicit so the threshold stays load-bearing.
-    ambiguous_confidence = 0.4
-    route: Literal["local", "claude"] = "claude" if ambiguous_confidence < CONFIDENCE_THRESHOLD else "local"
+    # Nothing matched either list — ambiguous prompts always go to Claude.
     return RouteDecision(
-        route=route,
+        route="claude",
         complexity=5,
-        confidence=ambiguous_confidence,
+        confidence=0.4,
         reason="ambiguous prompt, no confident keyword match",
         context_mode="full_claude",
     )
@@ -189,11 +188,23 @@ def classify_llm(
     assert prompt is not None
     try:
         content = ollama.triage(base_url, model, TRIAGE_SYSTEM_PROMPT, prompt, timeout=timeout)
-        return RouteDecision.model_validate_json(content)
+        decision = RouteDecision.model_validate_json(content)
     except (ollama.OllamaError, ValueError) as exc:
         # ValueError covers both json.JSONDecodeError and pydantic's
         # ValidationError (a ValueError subclass) in one catch.
         raise TriageError(str(exc)) from exc
+
+    # The prompt asks the model to route low-confidence cases to Claude, but
+    # never trust it: enforce the threshold here too.
+    if decision.route == "local" and decision.confidence < CONFIDENCE_THRESHOLD:
+        return RouteDecision(
+            route="claude",
+            complexity=decision.complexity,
+            confidence=decision.confidence,
+            reason=f"LLM triage confidence {decision.confidence:.2f} below threshold",
+            context_mode="full_claude",
+        )
+    return decision
 
 
 def classify_auto(prompt: str | None, raw_args: list[str] | None, cfg: "SieveConfig") -> RouteDecision:

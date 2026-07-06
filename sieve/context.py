@@ -74,12 +74,13 @@ def gather_context(prompt: str, cwd: Path, max_chars: int = 20000) -> str | None
     if "this file" in lower or "this function" in lower:
         explicit = _find_explicit_file(prompt, cwd)
         if explicit is not None:
-            full = explicit.read_text(errors="replace")
-            if len(full) > max_chars:
+            full = _read(explicit, max_chars + 1)
+            if full is not None and len(full) > max_chars:
                 # A single huge file can't be answered from safely on the local
                 # route — better to fall through to Claude than guess from a cut.
                 return None
-            add(str(explicit.relative_to(cwd)), explicit)
+            if full is not None:
+                add(str(explicit.relative_to(cwd)), explicit)
 
     if not parts:
         return None

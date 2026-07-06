@@ -21,7 +21,8 @@ def run_claude(real_claude_path: str, args: list[str], model_override: str | Non
     "opus") — but never if the user already passed their own --model, since
     explicit user intent always wins over triage's choice."""
     final_args = list(args)
-    if model_override and "--model" not in final_args:
+    user_set_model = any(a == "--model" or a.startswith("--model=") for a in args)
+    if model_override and not user_set_model:
         final_args = ["--model", model_override, *final_args]
 
     start = time.monotonic()

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import os
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -30,13 +30,18 @@ class SieveConfig(BaseModel):
 
 
 def load_config() -> SieveConfig:
+    cfg = SieveConfig()
     if CONFIG_PATH.exists():
-        cfg = SieveConfig.model_validate_json(CONFIG_PATH.read_text())
-    else:
-        cfg = SieveConfig()
+        try:
+            cfg = SieveConfig.model_validate_json(CONFIG_PATH.read_text())
+        except (ValueError, OSError) as exc:
+            # A corrupt config file must never brick every sieve command
+            # (including the shim's pass-through to claude). Warn and run on
+            # defaults; `sieve on` rewrites the file.
+            print(f"sieve: ignoring corrupt config at {CONFIG_PATH}: {exc}", file=sys.stderr)
 
     # Env vars override the persisted file for a single invocation.
-    overrides: dict[str, str] = {}
+    overrides: dict[str, object] = {}
     if v := os.environ.get("SIEVE_MODE"):
         overrides["mode"] = v
     if v := os.environ.get("SIEVE_OLLAMA_BASE_URL"):
@@ -44,7 +49,7 @@ def load_config() -> SieveConfig:
     if v := os.environ.get("SIEVE_OLLAMA_MODEL"):
         overrides["ollama_model"] = v
     if v := os.environ.get("SIEVE_MAX_CONTEXT_CHARS"):
-        overrides["max_context_chars"] = int(v)
+        overrides["max_context_chars"] = v
     if v := os.environ.get("SIEVE_DEBUG"):
         overrides["debug"] = v.strip().lower() in {"1", "true", "yes", "on"}
     if v := os.environ.get("SIEVE_TRIAGE_METHOD"):
@@ -52,7 +57,17 @@ def load_config() -> SieveConfig:
     if v := os.environ.get("SIEVE_TRIAGE_MODEL"):
         overrides["triage_model"] = v
 
-    return cfg.model_copy(update=overrides) if overrides else cfg
+    if not overrides:
+        return cfg
+
+    try:
+        # model_validate (not model_copy) so bad env values — SIEVE_MODE=garbage,
+        # a non-numeric SIEVE_MAX_CONTEXT_CHARS — are rejected instead of routing
+        # on an invalid mode string.
+        return SieveConfig.model_validate({**cfg.model_dump(), **overrides})
+    except ValueError as exc:
+        print(f"sieve: ignoring invalid SIEVE_* env override: {exc}", file=sys.stderr)
+        return cfg
 
 
 def save_config(cfg: SieveConfig) -> None:

@@ -65,6 +65,8 @@ def chat(base_url: str, model: str, user_content: str, timeout: float = 60.0) ->
                     break
     except httpx.HTTPError as exc:
         raise OllamaError(str(exc)) from exc
+    except json.JSONDecodeError as exc:
+        raise OllamaError(f"malformed stream line from ollama: {exc}") from exc
 
     return "".join(chunks)
 
