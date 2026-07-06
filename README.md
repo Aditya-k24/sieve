@@ -121,6 +121,24 @@ sieve config    print effective config (file + env overrides)
 sieve reset     disable + reset config to defaults (ledger untouched)
 ```
 
+## Claude Code slash commands
+
+`.claude/commands/` ships project-scoped slash commands so you can check
+Sieve from inside a Claude Code chat without dropping to a terminal:
+
+```text
+/sieve-status         sieve status
+/sieve-doctor         sieve doctor
+/sieve-history        sieve history
+/sieve-tokens-saved   sieve ledger
+/sieve-on             sieve on
+/sieve-off            sieve off
+```
+
+Each just runs the corresponding CLI command via `./.venv/bin/sieve` (works
+regardless of whether you've activated the venv) and inlines the output —
+run them from a Claude Code session opened at this repo's root.
+
 ## Config
 
 `~/.sieve/config.json`:
