@@ -5,10 +5,14 @@ listening port, no browser step.
 
 ## Components
 
-- **`sieve/shim.py`** — writes `~/.sieve/bin/claude`, a two-line bash script
-  that execs `sieve run claude "$@"`. Also discovers the real `claude`
-  binary by searching `PATH`, explicitly skipping `~/.sieve/bin` so it never
-  detects its own shim as "real."
+- **`sieve/shim.py`** — writes `~/.sieve/bin/claude`, a small bash script
+  with the absolute paths of both the `sieve` entry point and the real
+  `claude` baked in at `sieve on` time. It execs `sieve run claude "$@"`,
+  and if the sieve binary ever disappears (deleted venv, moved install) it
+  falls through to the real `claude` directly — the shim can degrade, but it
+  can never break `claude`. Also discovers the real `claude` binary by
+  searching `PATH`, explicitly skipping `~/.sieve/bin` so it never detects
+  its own shim as "real."
 - **`sieve/cli.py`** — Typer app. `sieve run claude [args...]` is the command
   the shim actually calls; it extracts a prompt, classifies it, and either
   answers locally or execs the real Claude binary.
@@ -47,8 +51,12 @@ smaller compatibility surface to maintain.
 2. Shell resolves `claude` to `~/.sieve/bin/claude` (requires that directory
    to be earlier on `PATH` than the real Claude install — `sieve doctor`
    checks this).
-3. Shim execs `sieve run claude "$@"`.
-4. `sieve run` extracts a prompt (last non-flag argument), classifies it.
+3. Shim execs `sieve run claude "$@"` (or the real `claude` directly if
+   sieve itself is missing).
+4. `sieve run` extracts a prompt (last positional argument, skipping values
+   of known value-taking flags like `--model`), classifies it. If Sieve is
+   disabled but the shim is still on `PATH`, everything passes straight
+   through to Claude.
 5. **Local route**: gather context → call Ollama → if `INSUFFICIENT_CONTEXT`
    or any failure, reroute to Claude instead. Otherwise print the answer and
    a footer, log to the ledger.

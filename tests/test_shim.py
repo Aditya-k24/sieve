@@ -1,5 +1,6 @@
 import os
 import stat
+import subprocess
 from pathlib import Path
 
 from sieve import shim
@@ -11,15 +12,48 @@ def test_write_and_remove_shim(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(shim, "BIN_DIR", bin_dir)
     monkeypatch.setattr(shim, "SHIM_PATH", shim_path)
 
-    written = shim.write_shim()
+    written = shim.write_shim("/usr/local/bin/claude")
     assert written == shim_path
     assert shim_path.is_file()
     assert os.access(shim_path, os.X_OK)
-    assert "exec sieve run claude" in shim_path.read_text()
+    content = shim_path.read_text()
+    assert "run claude" in content
+    assert "/usr/local/bin/claude" in content
 
     assert shim.remove_shim() is True
     assert not shim_path.exists()
     assert shim.remove_shim() is False
+
+
+def test_shim_falls_back_to_real_claude_when_sieve_missing(tmp_path: Path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    shim_path = bin_dir / "claude"
+    monkeypatch.setattr(shim, "BIN_DIR", bin_dir)
+    monkeypatch.setattr(shim, "SHIM_PATH", shim_path)
+    monkeypatch.setattr(shim, "_sieve_executable", lambda: str(tmp_path / "deleted-venv" / "sieve"))
+
+    real = tmp_path / "real-claude"
+    real.write_text('#!/usr/bin/env bash\necho "real:$1"\n')
+    real.chmod(0o755)
+
+    shim.write_shim(str(real))
+    result = subprocess.run([str(shim_path), "hello"], capture_output=True, text=True)
+    assert result.returncode == 0
+    assert result.stdout.strip() == "real:hello"
+    assert "passing through" in result.stderr
+
+
+def test_shim_exits_127_when_nothing_executable(tmp_path: Path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    shim_path = bin_dir / "claude"
+    monkeypatch.setattr(shim, "BIN_DIR", bin_dir)
+    monkeypatch.setattr(shim, "SHIM_PATH", shim_path)
+    monkeypatch.setattr(shim, "_sieve_executable", lambda: str(tmp_path / "missing-sieve"))
+
+    shim.write_shim(str(tmp_path / "missing-claude"))
+    result = subprocess.run([str(shim_path)], capture_output=True, text=True)
+    assert result.returncode == 127
+    assert "shim" in result.stderr
 
 
 def test_find_real_claude_excludes_sieve_bin(tmp_path: Path, monkeypatch):
