@@ -24,6 +24,7 @@ def test_claude_route_refactor():
     d = classify("refactor the auth module to use the new session store")
     assert d.route == "claude"
     assert d.confidence >= 0.9
+    assert d.claude_model is None  # heuristic never picks a specific tier
 
 
 def test_claude_route_multi_file():
@@ -64,6 +65,34 @@ def test_classify_llm_parses_valid_response(monkeypatch):
     d = classify_llm("what's in package.json?", [], "http://localhost:11434", "qwen2.5-coder:7b")
     assert d.route == "local"
     assert d.confidence == 0.9
+    assert d.claude_model is None
+
+
+def test_classify_llm_parses_claude_model_tier(monkeypatch):
+    valid_json = (
+        '{"route": "claude", "complexity": 9, "confidence": 0.9, '
+        '"reason": "auth architecture change", "context_mode": "full_claude", '
+        '"claude_model": "opus"}'
+    )
+    monkeypatch.setattr(ollama, "triage", lambda *a, **kw: valid_json)
+
+    d = classify_llm("redesign the auth architecture", [], "http://localhost:11434", "qwen2.5-coder:7b")
+    assert d.route == "claude"
+    assert d.claude_model == "opus"
+
+
+def test_classify_llm_rejects_invalid_claude_model_tier(monkeypatch):
+    invalid_json = (
+        '{"route": "claude", "complexity": 9, "confidence": 0.9, '
+        '"reason": "x", "context_mode": "full_claude", "claude_model": "gpt-4"}'
+    )
+    monkeypatch.setattr(ollama, "triage", lambda *a, **kw: invalid_json)
+
+    try:
+        classify_llm("redesign the auth architecture", [], "http://localhost:11434", "qwen2.5-coder:7b")
+        assert False, "expected TriageError"
+    except TriageError:
+        pass
 
 
 def test_classify_llm_skips_call_on_precheck(monkeypatch):

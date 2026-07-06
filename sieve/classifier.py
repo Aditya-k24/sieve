@@ -61,12 +61,19 @@ CLAUDE_KEYWORDS: list[str] = [
 ]
 
 
+CLAUDE_MODEL_TIERS = ("haiku", "sonnet", "opus")
+
+
 class RouteDecision(BaseModel):
     route: Literal["local", "claude"]
     complexity: int
     confidence: float
     reason: str
     context_mode: Literal["prompt_only", "selected_files", "full_claude"]
+    # Only set when route == "claude" and triage picked a specific tier via
+    # --model. None means "let Claude Code use its own default model" — the
+    # heuristic classifier never sets this; only classify_llm does.
+    claude_model: Literal["haiku", "sonnet", "opus"] | None = None
 
 
 class TriageError(Exception):
@@ -79,10 +86,15 @@ Route "local" only for narrow, read-only, single-file/manifest questions: readin
 
 Route "claude" for anything involving refactoring, multi-file changes, architecture, security/auth, migrations, deployment, debugging failing tests, or anything ambiguous.
 
-Respond with ONLY a JSON object, no prose, matching exactly this schema:
-{"route": "local" or "claude", "complexity": integer 1-10, "confidence": float 0-1, "reason": short string, "context_mode": "prompt_only" or "selected_files" or "full_claude"}
+When route is "claude", also pick which Claude model tier the task actually needs:
+- "haiku": narrow, well-defined, low-risk work that still needs a full coding assistant (a single clear fix, a small well-scoped failing test)
+- "sonnet": the default for most real coding work — features, typical refactors, typical debugging
+- "opus": hard, high-stakes, or ambiguous work — architecture decisions, security/auth, migrations, multi-system debugging
 
-If unsure, set route to "claude" and confidence below 0.6."""
+Respond with ONLY a JSON object, no prose, matching exactly this schema:
+{"route": "local" or "claude", "complexity": integer 1-10, "confidence": float 0-1, "reason": short string, "context_mode": "prompt_only" or "selected_files" or "full_claude", "claude_model": "haiku" or "sonnet" or "opus" or null}
+
+claude_model must be null when route is "local". If unsure, set route to "claude", confidence below 0.6, and claude_model to "sonnet"."""
 
 
 def _has_interactive_flag(raw_args: list[str]) -> bool:

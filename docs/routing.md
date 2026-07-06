@@ -16,6 +16,28 @@ triage than for actually answering local prompts; defaults to
 `SIEVE_OLLAMA_MODEL` if unset. `sieve doctor` checks the triage model's
 availability separately only when it differs from the main Ollama model.
 
+## Claude model tier selection (LLM triage only)
+
+When `route == "claude"`, `classify_llm()` also asks the local model to pick
+which Claude model tier the task actually needs — `haiku` (narrow, low-risk,
+still needs full Claude), `sonnet` (default for most real work), or `opus`
+(architecture, security, migrations, hard multi-system debugging). That
+choice becomes a `--model <tier>` flag added to the real Claude invocation
+(`claude_runner.run_claude`) — unless the user already passed their own
+`--model` flag, which always wins.
+
+The heuristic classifier (`classify()`) never sets a tier — `claude_model`
+stays `None`, meaning no override, Claude Code just uses its own default
+model. This is deliberately LLM-only: picking model tiers needs actual
+judgment about task difficulty that keyword matching can't provide.
+
+The chosen tier (or `"claude"` if none was picked) becomes the `model`
+column in the ledger, which is what the Claude Code statusline badge shows —
+e.g. `[SIEVE:opus]`, `[SIEVE:sonnet]`, or `[SIEVE:claude]` when no tier was
+chosen. A small local triage model won't always populate `claude_model` even
+when instructed to — this degrades safely to `None` (no override) rather
+than failing.
+
 ## Heuristic rules
 
 Order of checks in `classify(prompt, raw_args)`:

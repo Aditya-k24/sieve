@@ -157,7 +157,9 @@ conservative on purpose.
 
 Two triage methods: `SIEVE_TRIAGE_METHOD=heuristic` (default, above) or
 `llm` (asks the local Ollama model to decide, falling back to the heuristic
-on any failure). See [docs/routing.md](docs/routing.md).
+on any failure). With `llm`, Claude-routed requests also get a specific
+model tier picked (`haiku`/`sonnet`/`opus`, via `claude --model`), shown in
+the statusline as `[SIEVE:opus]` etc. See [docs/routing.md](docs/routing.md).
 
 ## Safety
 

@@ -271,15 +271,16 @@ def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, c
 
 
 def _run_claude_route(cfg: SieveConfig, prompt: Optional[str], args: list[str], decision) -> None:
-    result = run_claude(cfg.real_claude_path, args)
+    result = run_claude(cfg.real_claude_path, args, model_override=decision.claude_model)
     input_tokens = estimate_tokens(prompt) if prompt else 0
+    model_label = decision.claude_model or "claude"
 
     # Log before printing — same reasoning as the local route above.
     ledger.insert_request(
         ledger.RequestRecord(
             command=" ".join(args),
             route="claude",
-            model="claude",
+            model=model_label,
             complexity=decision.complexity,
             confidence=decision.confidence,
             reason=decision.reason,
