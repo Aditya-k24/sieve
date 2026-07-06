@@ -238,19 +238,12 @@ def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, c
         _run_claude_route(cfg, prompt, args, fallback)
         return
 
-    terminal.console.print(answer)
-
     input_tokens = estimate_tokens(user_content)
     output_tokens = estimate_tokens(answer)
     quota_saved = input_tokens + output_tokens
 
-    terminal.print_footer(
-        route="local",
-        reason=decision.reason,
-        quota_line=f"[bold]Claude quota preserved:[/bold] {terminal.format_tokens(quota_saved)} (estimated)",
-        latency_s=latency_s,
-    )
-
+    # Log before printing: if stdout closes early (piped into `head`, Ctrl-C,
+    # a broken pipe) the print can raise, but the request still gets recorded.
     ledger.insert_request(
         ledger.RequestRecord(
             command=" ".join(args),
@@ -268,18 +261,20 @@ def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, c
         )
     )
 
+    terminal.console.print(answer)
+    terminal.print_footer(
+        route="local",
+        reason=decision.reason,
+        quota_line=f"[bold]Claude quota preserved:[/bold] {terminal.format_tokens(quota_saved)} (estimated)",
+        latency_s=latency_s,
+    )
+
 
 def _run_claude_route(cfg: SieveConfig, prompt: Optional[str], args: list[str], decision) -> None:
     result = run_claude(cfg.real_claude_path, args)
-
     input_tokens = estimate_tokens(prompt) if prompt else 0
-    terminal.print_footer(
-        route="claude",
-        reason=decision.reason,
-        quota_line="[bold]Claude quota used:[/bold] estimated (see Claude Code's own usage UI)",
-        latency_s=result.latency_ms / 1000,
-    )
 
+    # Log before printing — same reasoning as the local route above.
     ledger.insert_request(
         ledger.RequestRecord(
             command=" ".join(args),
@@ -296,6 +291,13 @@ def _run_claude_route(cfg: SieveConfig, prompt: Optional[str], args: list[str], 
             success=result.exit_code == 0,
             error_message=None if result.exit_code == 0 else f"exit code {result.exit_code}",
         )
+    )
+
+    terminal.print_footer(
+        route="claude",
+        reason=decision.reason,
+        quota_line="[bold]Claude quota used:[/bold] estimated (see Claude Code's own usage UI)",
+        latency_s=result.latency_ms / 1000,
     )
 
     raise typer.Exit(code=result.exit_code)
