@@ -14,7 +14,8 @@ sieve on
 claude "what test framework does this repo use?"
 ```
 
-![Sieve statusline badge showing which model answered the last prompt](docs/images/statusline.png)
+<img src="docs/images/statusline.png" alt="Sieve statusline badge showing which model answered the last prompt" width="480">
+
 
 ## What you get
 
