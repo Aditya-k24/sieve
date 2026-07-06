@@ -20,8 +20,7 @@ SCRIPT_PATH = HOOKS_DIR / "sieve-statusline.sh"
 SCRIPT_CONTENT = """#!/bin/bash
 # sieve — statusline badge for Claude Code.
 # Shows [SIEVE:<model>] for whichever model handled the most recent request
-# (local Ollama model name, or "claude"), plus quota preserved in the last
-# 5 hours (same window as `sieve ledger`). Renders nothing if Sieve isn't
+# (local Ollama model name, or "claude"). Renders nothing if Sieve isn't
 # installed/enabled, or the ledger doesn't exist yet.
 
 CONFIG="${SIEVE_HOME:-$HOME/.sieve}/config.json"
@@ -51,27 +50,6 @@ if [ -n "$LATEST_MODEL" ]; then
 else
     printf '\\033[38;5;39m[SIEVE]\\033[0m'
 fi
-
-SINCE=$(date -u -v-5H +%Y-%m-%dT%H:%M:%S 2>/dev/null || date -u -d '5 hours ago' +%Y-%m-%dT%H:%M:%S 2>/dev/null)
-[ -z "$SINCE" ] && exit 0
-
-SAVED=$(sqlite3 "$DB" "SELECT COALESCE(SUM(estimated_quota_saved),0) FROM requests WHERE timestamp >= '$SINCE';" 2>/dev/null)
-
-# Only ever a plain integer from SUM() — still guard against a corrupt/locked
-# DB returning something unexpected before it reaches printf.
-case "$SAVED" in
-    ''|*[!0-9]*) exit 0 ;;
-esac
-
-[ "$SAVED" -le 0 ] && exit 0
-
-if [ "$SAVED" -ge 1000 ]; then
-    HUMAN=$(awk -v n="$SAVED" 'BEGIN{printf "%.1fK", n/1000}')
-else
-    HUMAN="$SAVED"
-fi
-
-printf ' \\033[38;5;39m\\xf0\\x9f\\xaa\\x99 %s\\033[0m' "$HUMAN"
 """
 
 

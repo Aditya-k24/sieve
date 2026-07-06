@@ -71,11 +71,11 @@ install on `PATH`.
 
 ## Claude Code statusline
 
-`sieve on` also wires a `[SIEVE]` badge into Claude Code's own terminal
-statusline (`~/.claude/settings.json`), chaining with any existing
-`statusLine` command rather than replacing it. Once local routing has
-preserved some quota, it shows a running total for the last 5 hours, e.g.
-`[SIEVE] 🪙 12.4K`. Renders nothing if Sieve is disabled. Safe to run
+`sieve on` also wires a `[SIEVE:<model>]` badge into Claude Code's own
+terminal statusline (`~/.claude/settings.json`), chaining with any existing
+`statusLine` command rather than replacing it. Shows whichever model
+answered the most recent request, e.g. `[SIEVE:qwen2.5-coder:7b]` or
+`[SIEVE:claude]`. Renders nothing if Sieve is disabled. Safe to run
 repeatedly — idempotent, never duplicates the chain. Start a new Claude Code
 session to pick up the change.
 
