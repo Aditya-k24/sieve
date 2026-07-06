@@ -1,10 +1,12 @@
 # Sieve
 
-Sieve is a terminal-native router for Claude Code.
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Terminal native](https://img.shields.io/badge/UI-terminal--native-informational)
 
-Simple prompts go to a local Ollama model. Complex prompts go to real Claude
-Code. Everything happens in your terminal — no dashboard, no browser, no
-manual proxy configuration.
+**A terminal-native router for Claude Code.** Simple prompts go to a local
+Ollama model, complex ones go to real Claude Code — automatically, with no
+dashboard, no browser, no manual proxy setup.
 
 ```bash
 git clone <repo>
@@ -17,6 +19,20 @@ sieve ledger
 sieve off
 ```
 
+## Contents
+
+- [How it works](#how-it-works)
+- [Setup](#setup)
+- [Claude Code statusline](#claude-code-statusline)
+- [Example output](#example-output)
+- [Commands](#commands)
+- [Claude Code slash commands](#claude-code-slash-commands)
+- [Config](#config)
+- [Routing](#routing)
+- [Safety](#safety)
+- [Tests](#tests)
+- [Docs](#docs)
+
 ## How it works
 
 `sieve on` finds your real `claude` binary and writes a small shell shim to
@@ -24,7 +40,7 @@ sieve off
 directory on your `PATH`, running `claude ...` actually runs the shim, which
 calls `sieve run claude "$@"`:
 
-```
+```text
 you type: claude "what test framework does this repo use?"
               │
               ▼
@@ -81,7 +97,7 @@ session to pick up the change.
 
 ## Example output
 
-Local route:
+**Local route:**
 
 ```text
 This project uses Jest as the test framework.
@@ -94,7 +110,7 @@ Latency: 0.8s
 ────────────────────────────────────
 ```
 
-Claude pass-through:
+**Claude pass-through:**
 
 ```text
 [real Claude Code output streams normally]
@@ -109,31 +125,31 @@ Latency: 9.6s
 
 ## Commands
 
-```text
-sieve doctor    check Python, config, shim, PATH order, Ollama, ledger
-sieve on        install the shim, detect real Claude
-sieve off       remove the shim
-sieve status    show enabled/disabled, shim path, real Claude, Ollama, mode
-sieve run claude [args...]   what the shim actually calls — not for direct use
-sieve ledger    5-hour routing summary (requests, local/claude split, quota preserved)
-sieve history   recent request table
-sieve config    print effective config (file + env overrides)
-sieve reset     disable + reset config to defaults (ledger untouched)
-```
+| Command | What it does |
+|---|---|
+| `sieve doctor` | Check Python, config, shim, PATH order, Ollama, ledger |
+| `sieve on` | Install the shim, detect real Claude |
+| `sieve off` | Remove the shim |
+| `sieve status` | Show enabled/disabled, shim path, real Claude, Ollama, mode |
+| `sieve run claude [args...]` | What the shim actually calls — not for direct use |
+| `sieve ledger` | 5-hour routing summary (requests, local/claude split, quota preserved) |
+| `sieve history` | Recent request table |
+| `sieve config` | Print effective config (file + env overrides) |
+| `sieve reset` | Disable + reset config to defaults (ledger untouched) |
 
 ## Claude Code slash commands
 
 `.claude/commands/` ships project-scoped slash commands so you can check
 Sieve from inside a Claude Code chat without dropping to a terminal:
 
-```text
-/sieve-status         sieve status
-/sieve-doctor         sieve doctor
-/sieve-history        sieve history
-/sieve-tokens-saved   sieve ledger
-/sieve-on             sieve on
-/sieve-off            sieve off
-```
+| Command | Runs |
+|---|---|
+| `/sieve-status` | `sieve status` |
+| `/sieve-doctor` | `sieve doctor` |
+| `/sieve-history` | `sieve history` |
+| `/sieve-tokens-saved` | `sieve ledger` |
+| `/sieve-on` | `sieve on` |
+| `/sieve-off` | `sieve off` |
 
 Each just runs the corresponding CLI command via `./.venv/bin/sieve` (works
 regardless of whether you've activated the venv) and inlines the output —
@@ -181,18 +197,18 @@ the statusline as `[SIEVE:opus]` etc. See [docs/routing.md](docs/routing.md).
 
 ## Safety
 
-Sieve never modifies your real Claude binary.
-Sieve never steals or replays Claude auth tokens.
-Sieve does not bypass usage limits — it only avoids sending requests to
-Claude that don't need to go there.
-Sieve only creates a PATH shim, removable at any time with `sieve off`.
-The real Claude Code binary is called as an ordinary subprocess with your
-original arguments; Sieve never touches its authentication.
+- Sieve never modifies your real Claude binary.
+- Sieve never steals or replays Claude auth tokens.
+- Sieve does not bypass usage limits — it only avoids sending requests to
+  Claude that don't need to go there.
+- Sieve only creates a PATH shim, removable at any time with `sieve off`.
+- The real Claude Code binary is called as an ordinary subprocess with your
+  original arguments; Sieve never touches its authentication.
 
-"Quota preserved" and "quota used" are rough estimates
-(`len(text) // 4` token approximation), not values read from Anthropic's own
-usage accounting. Treat Claude Code's own `/status` and usage UI as the
-source of truth.
+> "Quota preserved" and "quota used" are rough estimates
+> (`len(text) // 4` token approximation), not values read from Anthropic's
+> own usage accounting. Treat Claude Code's own `/status` and usage UI as
+> the source of truth.
 
 ## Tests
 
