@@ -67,3 +67,28 @@ def chat(base_url: str, model: str, user_content: str, timeout: float = 60.0) ->
         raise OllamaError(str(exc)) from exc
 
     return "".join(chunks)
+
+
+def triage(base_url: str, model: str, system_prompt: str, user_prompt: str, timeout: float = 15.0) -> str:
+    """Single-shot, non-streaming, JSON-mode call — used for LLM-based routing
+    triage rather than answering a question directly. Kept short-timeout since
+    a slow triage call defeats the point of routing cheaply."""
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": False,
+        "format": "json",
+    }
+    try:
+        response = httpx.post(f"{base_url.rstrip('/')}/api/chat", json=payload, timeout=timeout)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise OllamaError(str(exc)) from exc
+
+    try:
+        return response.json()["message"]["content"]
+    except (KeyError, ValueError) as exc:
+        raise OllamaError(f"unexpected ollama response shape: {exc}") from exc

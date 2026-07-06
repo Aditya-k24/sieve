@@ -1,7 +1,24 @@
 # Routing
 
-`sieve/classifier.py` is a deterministic keyword matcher — no LLM triage in
-v1. Order of checks in `classify(prompt, raw_args)`:
+`sieve/classifier.py` supports two triage methods, selected by
+`SIEVE_TRIAGE_METHOD` / `config.json["triage_method"]`:
+
+- **`heuristic`** (default) — deterministic keyword rules, `classify()`. No
+  network call.
+- **`llm`** — asks the local Ollama model to decide instead, `classify_llm()`.
+  Falls back to `classify()` on any failure (offline, malformed JSON, a
+  response that doesn't match the `RouteDecision` schema) — `classify_auto()`
+  is what `SIEVE_MODE=auto` actually calls, and it never lets a bad LLM
+  response reach the router.
+
+Set `SIEVE_TRIAGE_MODEL` to use a different (e.g. smaller/faster) model for
+triage than for actually answering local prompts; defaults to
+`SIEVE_OLLAMA_MODEL` if unset. `sieve doctor` checks the triage model's
+availability separately only when it differs from the main Ollama model.
+
+## Heuristic rules
+
+Order of checks in `classify(prompt, raw_args)`:
 
 1. **No prompt** → Claude (`reason: "no prompt detected"`, confidence 1.0).
 2. **Interactive/session flag** (`-c`, `--continue`, `-r`, `--resume`, `-i`,

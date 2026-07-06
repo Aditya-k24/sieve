@@ -155,6 +155,10 @@ multi-file/ambiguous/interactive-flag requests go to Claude. Anything that
 doesn't clearly match either list also goes to Claude — the classifier is
 conservative on purpose.
 
+Two triage methods: `SIEVE_TRIAGE_METHOD=heuristic` (default, above) or
+`llm` (asks the local Ollama model to decide, falling back to the heuristic
+on any failure). See [docs/routing.md](docs/routing.md).
+
 ## Safety
 
 Sieve never modifies your real Claude binary.

@@ -25,6 +25,8 @@ class SieveConfig(BaseModel):
     mode: Literal["auto", "local_only", "claude_only"] = "auto"
     max_context_chars: int = 20000
     debug: bool = False
+    triage_method: Literal["heuristic", "llm"] = "heuristic"
+    triage_model: str | None = None
 
 
 def load_config() -> SieveConfig:
@@ -45,6 +47,10 @@ def load_config() -> SieveConfig:
         overrides["max_context_chars"] = int(v)
     if v := os.environ.get("SIEVE_DEBUG"):
         overrides["debug"] = v.strip().lower() in {"1", "true", "yes", "on"}
+    if v := os.environ.get("SIEVE_TRIAGE_METHOD"):
+        overrides["triage_method"] = v
+    if v := os.environ.get("SIEVE_TRIAGE_MODEL"):
+        overrides["triage_model"] = v
 
     return cfg.model_copy(update=overrides) if overrides else cfg
 

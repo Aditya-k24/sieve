@@ -104,6 +104,10 @@ def status_command() -> None:
     terminal.console.print(f"Model: {cfg.ollama_model}")
     terminal.console.print(f"Ledger: {SIEVE_HOME / 'sieve.db'}")
     terminal.console.print(f"Mode: {cfg.mode}")
+    triage_desc = cfg.triage_method
+    if cfg.triage_method == "llm":
+        triage_desc += f" ({cfg.triage_model or cfg.ollama_model})"
+    terminal.console.print(f"Triage: {triage_desc}")
 
 
 @app.command(name="ledger")
@@ -169,7 +173,7 @@ def run_command(
             route="local", complexity=1, confidence=1.0, reason="SIEVE_MODE=local_only", context_mode="selected_files"
         )
     else:
-        decision = classifier.classify(prompt, args)
+        decision = classifier.classify_auto(prompt, args, cfg)
 
     terminal.debug(f"classification: {decision}")
 

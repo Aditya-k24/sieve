@@ -45,6 +45,17 @@ def run_checks(cfg: SieveConfig) -> list[tuple[str, bool, str]]:
     else:
         results.append(("Ollama model available", False, "skipped — Ollama offline"))
 
+    if cfg.triage_method == "llm":
+        triage_model = cfg.triage_model or cfg.ollama_model
+        if online and triage_model != cfg.ollama_model:
+            triage_ok = ollama.model_available(cfg.ollama_base_url, triage_model)
+            results.append(
+                ("Triage model available", triage_ok, triage_model if triage_ok else f"pull it: ollama pull {triage_model}")
+            )
+        elif not online:
+            results.append(("Triage model available", False, "skipped — Ollama offline"))
+        # else: same model as ollama_model, already covered by the check above.
+
     try:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(DB_PATH)) as conn:
