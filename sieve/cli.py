@@ -6,7 +6,7 @@ from typing import Optional
 
 import typer
 
-from sieve import classifier, context, doctor, ledger, ollama, shim, terminal
+from sieve import classifier, context, doctor, ledger, ollama, shim, statusline, terminal
 from sieve.claude_runner import run_claude
 from sieve.config import (
     BIN_DIR,
@@ -68,6 +68,14 @@ def on_command() -> None:
             )
         terminal.console.print(
             f'For this exact shell right now: export PATH="{BIN_DIR}:$PATH"'
+        )
+
+    try:
+        outcome = statusline.install()
+        terminal.console.print(f"Claude Code statusline: {outcome}.")
+    except (OSError, ValueError) as exc:
+        terminal.console.print(
+            f"[yellow]Skipped statusline setup ({exc}).[/yellow] Not required — sieve still works."
         )
 
 
