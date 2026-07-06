@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS requests (
     timestamp TEXT NOT NULL,
     command TEXT,
     route TEXT NOT NULL,
+    model TEXT,
     complexity INTEGER,
     confidence REAL,
     reason TEXT,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS requests (
 class RequestRecord:
     command: str
     route: str
+    model: str
     complexity: int
     confidence: float
     reason: str
@@ -49,6 +51,10 @@ def ensure_db(db_path=DB_PATH) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(SCHEMA)
+        # Migration for DBs created before the 'model' column existed.
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(requests)")}
+        if "model" not in columns:
+            conn.execute("ALTER TABLE requests ADD COLUMN model TEXT")
         conn.commit()
 
 
@@ -58,15 +64,16 @@ def insert_request(record: RequestRecord, db_path=DB_PATH) -> None:
         conn.execute(
             """
             INSERT INTO requests (
-                timestamp, command, route, complexity, confidence, reason,
+                timestamp, command, route, model, complexity, confidence, reason,
                 context_mode, estimated_input_tokens, estimated_output_tokens,
                 estimated_quota_saved, latency_ms, success, error_message
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.now(timezone.utc).isoformat(),
                 record.command,
                 record.route,
+                record.model,
                 record.complexity,
                 record.confidence,
                 record.reason,

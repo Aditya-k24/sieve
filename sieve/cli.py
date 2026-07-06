@@ -251,6 +251,7 @@ def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, c
         ledger.RequestRecord(
             command=" ".join(args),
             route="local",
+            model=cfg.ollama_model,
             complexity=decision.complexity,
             confidence=decision.confidence,
             reason=decision.reason,
@@ -279,6 +280,7 @@ def _run_claude_route(cfg: SieveConfig, prompt: Optional[str], args: list[str], 
         ledger.RequestRecord(
             command=" ".join(args),
             route="claude",
+            model="claude",
             complexity=decision.complexity,
             confidence=decision.confidence,
             reason=decision.reason,

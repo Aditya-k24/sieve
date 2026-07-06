@@ -49,6 +49,7 @@ def print_history_table(rows: list[dict]) -> None:
     table = Table(title="Sieve request history")
     table.add_column("Time")
     table.add_column("Route")
+    table.add_column("Model")
     table.add_column("Reason", overflow="fold")
     table.add_column("Conf.")
     table.add_column("Quota saved")
@@ -59,6 +60,7 @@ def print_history_table(rows: list[dict]) -> None:
         table.add_row(
             r["timestamp"].split("T")[1].split(".")[0] if "T" in r["timestamp"] else r["timestamp"],
             r["route"],
+            r["model"] or "-",
             r["reason"] or "",
             f"{r['confidence']:.2f}" if r["confidence"] is not None else "-",
             format_tokens(r["estimated_quota_saved"] or 0),
