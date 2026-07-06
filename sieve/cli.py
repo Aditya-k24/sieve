@@ -6,7 +6,7 @@ from typing import Optional
 
 import typer
 
-from sieve import classifier, context, doctor, ledger, ollama, shim, statusline, terminal
+from sieve import __version__, classifier, context, doctor, ledger, ollama, shim, statusline, terminal
 from sieve.claude_runner import run_claude
 from sieve.config import (
     BIN_DIR,
@@ -20,10 +20,56 @@ from sieve.token_counter import estimate_tokens
 app = typer.Typer(help="Sieve — terminal-native router for Claude Code.")
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        terminal.console.print(f"sieve {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        False, "--version", callback=_version_callback, is_eager=True, help="Print version and exit."
+    ),
+) -> None:
+    pass
+
+
+# Claude Code flags that consume the next argument — their values must not be
+# mistaken for the prompt (e.g. `claude --model opus` has no prompt).
+VALUE_FLAGS = {
+    "--model",
+    "--add-dir",
+    "--settings",
+    "--permission-mode",
+    "--mcp-config",
+    "--session-id",
+    "--append-system-prompt",
+    "--allowedTools",
+    "--disallowedTools",
+    "--output-format",
+    "--input-format",
+    "--max-turns",
+    "--fallback-model",
+    "-r",
+    "--resume",
+}
+
+
 def _extract_prompt(args: list[str]) -> Optional[str]:
-    """Heuristic: the prompt is the last non-flag positional argument."""
-    candidates = [a for a in args if not a.startswith("-")]
-    return candidates[-1] if candidates else None
+    """Heuristic: the prompt is the last positional argument that isn't a flag
+    or a value consumed by a known value-taking flag."""
+    prompt: Optional[str] = None
+    skip_next = False
+    for a in args:
+        if skip_next:
+            skip_next = False
+            continue
+        if a.startswith("-"):
+            skip_next = a in VALUE_FLAGS
+            continue
+        prompt = a
+    return prompt
 
 
 @app.command(name="doctor")
@@ -48,7 +94,7 @@ def on_command() -> None:
     cfg.real_claude_path = real_claude
     cfg.enabled = True
     save_config(cfg)
-    shim.write_shim()
+    shim.write_shim(real_claude)
 
     terminal.console.print(f"[green]Sieve enabled.[/green] Real Claude: {real_claude}")
     terminal.console.print(f"Shim installed at: {shim.SHIM_PATH}")
@@ -162,6 +208,13 @@ def run_command(
         )
         raise typer.Exit(code=1)
 
+    if not cfg.enabled:
+        # Shim can outlive `sieve off` (shared dotfiles, stale PATH copy) —
+        # a disabled Sieve must behave exactly like plain claude: no routing,
+        # no footer, no ledger row.
+        result = run_claude(cfg.real_claude_path, args)
+        raise typer.Exit(code=result.exit_code)
+
     prompt = _extract_prompt(args)
 
     if cfg.mode == "claude_only":
@@ -183,59 +236,50 @@ def run_command(
         _run_claude_route(cfg, prompt, args, decision)
 
 
+def _fallback_decision(decision, reason: str) -> "classifier.RouteDecision":
+    """Reroute a failed local attempt to Claude, keeping the original scoring."""
+    terminal.debug(f"{reason} — rerouting to Claude")
+    return classifier.RouteDecision(
+        route="claude",
+        complexity=decision.complexity,
+        confidence=decision.confidence,
+        reason=reason,
+        context_mode="full_claude",
+    )
+
+
+def _log_request(record: ledger.RequestRecord) -> None:
+    """Ledger writes are best-effort: a locked/corrupt/unwritable DB must never
+    eat the answer or the exit code."""
+    try:
+        ledger.insert_request(record)
+    except Exception as exc:  # noqa: BLE001 — any sqlite/OS failure is non-fatal here
+        terminal.debug(f"ledger write failed (non-fatal): {exc}")
+
+
 def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, cwd: Path) -> None:
     ctx_text = context.gather_context(prompt, cwd, cfg.max_context_chars)
     if ctx_text is None:
-        terminal.debug("no usable local context found — rerouting to Claude")
-        fallback = classifier.RouteDecision(
-            route="claude",
-            complexity=decision.complexity,
-            confidence=decision.confidence,
-            reason="no local context available",
-            context_mode="full_claude",
-        )
-        _run_claude_route(cfg, prompt, args, fallback)
+        _run_claude_route(cfg, prompt, args, _fallback_decision(decision, "no local context available"))
         return
 
     if not ollama.is_online(cfg.ollama_base_url):
-        terminal.debug("ollama offline — rerouting to Claude")
-        fallback = classifier.RouteDecision(
-            route="claude",
-            complexity=decision.complexity,
-            confidence=decision.confidence,
-            reason="ollama offline",
-            context_mode="full_claude",
-        )
-        _run_claude_route(cfg, prompt, args, fallback)
+        _run_claude_route(cfg, prompt, args, _fallback_decision(decision, "ollama offline"))
         return
 
     user_content = f"Context:\n{ctx_text}\n\nQuestion: {prompt}"
     start = time.monotonic()
     try:
         answer = ollama.chat(cfg.ollama_base_url, cfg.ollama_model, user_content)
-    except ollama.OllamaError as exc:
-        terminal.debug(f"ollama error: {exc} — rerouting to Claude")
-        fallback = classifier.RouteDecision(
-            route="claude",
-            complexity=decision.complexity,
-            confidence=decision.confidence,
-            reason="ollama request failed",
-            context_mode="full_claude",
-        )
-        _run_claude_route(cfg, prompt, args, fallback)
+    except ollama.OllamaError:
+        _run_claude_route(cfg, prompt, args, _fallback_decision(decision, "ollama request failed"))
         return
     latency_s = time.monotonic() - start
 
     if ollama.INSUFFICIENT_MARKER in answer:
-        terminal.debug("ollama returned INSUFFICIENT_CONTEXT — rerouting to Claude")
-        fallback = classifier.RouteDecision(
-            route="claude",
-            complexity=decision.complexity,
-            confidence=decision.confidence,
-            reason="local model reported insufficient context",
-            context_mode="full_claude",
+        _run_claude_route(
+            cfg, prompt, args, _fallback_decision(decision, "local model reported insufficient context")
         )
-        _run_claude_route(cfg, prompt, args, fallback)
         return
 
     input_tokens = estimate_tokens(user_content)
@@ -244,7 +288,7 @@ def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, c
 
     # Log before printing: if stdout closes early (piped into `head`, Ctrl-C,
     # a broken pipe) the print can raise, but the request still gets recorded.
-    ledger.insert_request(
+    _log_request(
         ledger.RequestRecord(
             command=" ".join(args),
             route="local",
@@ -276,7 +320,7 @@ def _run_claude_route(cfg: SieveConfig, prompt: Optional[str], args: list[str], 
     model_label = decision.claude_model or "claude"
 
     # Log before printing — same reasoning as the local route above.
-    ledger.insert_request(
+    _log_request(
         ledger.RequestRecord(
             command=" ".join(args),
             route="claude",
