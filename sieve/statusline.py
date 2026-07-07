@@ -20,8 +20,15 @@ SCRIPT_PATH = HOOKS_DIR / "sieve-statusline.sh"
 SCRIPT_CONTENT = """#!/bin/bash
 # sieve — statusline badge for Claude Code.
 # Shows [SIEVE:<model>] for whichever model handled the most recent request
-# (local Ollama model name, or "claude"). Renders nothing if Sieve isn't
-# installed/enabled, or the ledger doesn't exist yet.
+# (local Ollama model name, a user-passed --model, or the session's own model).
+# Renders nothing if Sieve isn't installed/enabled, or the ledger doesn't
+# exist yet.
+
+# Claude Code pipes session JSON to statusline commands on stdin; the model's
+# display_name is the documented way to learn which model the session runs.
+STDIN_JSON=$(cat 2>/dev/null)
+SESSION_MODEL=$(printf '%s' "$STDIN_JSON" \\
+    | sed -n 's/.*"display_name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' | head -1)
 
 CONFIG="${SIEVE_HOME:-$HOME/.sieve}/config.json"
 DB="${SIEVE_HOME:-$HOME/.sieve}/sieve.db"
@@ -34,16 +41,21 @@ DB="${SIEVE_HOME:-$HOME/.sieve}/sieve.db"
 ENABLED=$(grep -o '"enabled"[[:space:]]*:[[:space:]]*true' "$CONFIG")
 [ -z "$ENABLED" ] && exit 0
 
-if [ -L "$DB" ] || [ ! -f "$DB" ] || ! command -v sqlite3 >/dev/null 2>&1; then
-    printf '\\033[38;5;39m[SIEVE]\\033[0m'
-    exit 0
+LATEST_MODEL=""
+if [ ! -L "$DB" ] && [ -f "$DB" ] && command -v sqlite3 >/dev/null 2>&1; then
+    LATEST_MODEL=$(sqlite3 "$DB" "SELECT model FROM requests ORDER BY id DESC LIMIT 1;" 2>/dev/null)
 fi
 
-LATEST_MODEL=$(sqlite3 "$DB" "SELECT model FROM requests ORDER BY id DESC LIMIT 1;" 2>/dev/null)
-# model is either our own config's ollama_model or the literal "claude", but
-# ollama_model is user-editable JSON — whitelist a safe charset before it
-# ever reaches printf, same reasoning as the symlink guards above.
-LATEST_MODEL=$(printf '%s' "$LATEST_MODEL" | tr -cd 'A-Za-z0-9:_./-' | cut -c1-40)
+# A bare "claude" label means Sieve routed to Claude Code without knowing the
+# model — the session's own display_name is strictly more informative.
+if [ -z "$LATEST_MODEL" ] || [ "$LATEST_MODEL" = "claude" ]; then
+    [ -n "$SESSION_MODEL" ] && LATEST_MODEL="$SESSION_MODEL"
+fi
+
+# Whitelist a safe charset before anything user-editable reaches printf —
+# ollama_model comes from user-editable JSON, same reasoning as the symlink
+# guards above. Space allowed for display names like "Fable 5".
+LATEST_MODEL=$(printf '%s' "$LATEST_MODEL" | tr -cd 'A-Za-z0-9:_. /-' | cut -c1-40)
 
 if [ -n "$LATEST_MODEL" ]; then
     printf '\\033[38;5;39m[SIEVE:%s]\\033[0m' "$LATEST_MODEL"
