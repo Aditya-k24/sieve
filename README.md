@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/logo.png" alt="Sieve — terminal router for Claude Code" width="640">
+<img src="docs/images/logo.png" alt="Sieve — terminal router for Claude Code" width="480">
 
 **Terminal router for Claude Code.**
 
