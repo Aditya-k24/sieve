@@ -56,6 +56,16 @@ VALUE_FLAGS = {
 }
 
 
+def _user_model(args: list[str]) -> Optional[str]:
+    """The value of a user-passed --model flag, if any."""
+    for i, a in enumerate(args):
+        if a == "--model" and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith("--model="):
+            return a.split("=", 1)[1]
+    return None
+
+
 def _extract_prompt(args: list[str]) -> Optional[str]:
     """Heuristic: the prompt is the last positional argument that isn't a flag
     or a value consumed by a known value-taking flag."""
@@ -317,7 +327,10 @@ def _run_local_route(cfg: SieveConfig, prompt: str, args: list[str], decision, c
 def _run_claude_route(cfg: SieveConfig, prompt: Optional[str], args: list[str], decision) -> None:
     result = run_claude(cfg.real_claude_path, args, model_override=decision.claude_model)
     input_tokens = estimate_tokens(prompt) if prompt else 0
-    model_label = decision.claude_model or "claude"
+    # User's --model wins inside run_claude, so it must win in the label too;
+    # triage's pick applies only when the user didn't choose. Bare "claude"
+    # means Claude Code used its own default, which Sieve can't observe.
+    model_label = _user_model(args) or decision.claude_model or "claude"
 
     # Log before printing — same reasoning as the local route above.
     _log_request(

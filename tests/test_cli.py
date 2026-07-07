@@ -1,4 +1,20 @@
-from sieve.cli import _extract_prompt
+from sieve.cli import _extract_prompt, _user_model
+
+
+def test_user_model_space_form():
+    assert _user_model(["--model", "opus", "fix typo"]) == "opus"
+
+
+def test_user_model_equals_form():
+    assert _user_model(["--model=claude-opus-4-8", "fix typo"]) == "claude-opus-4-8"
+
+
+def test_user_model_absent():
+    assert _user_model(["fix typo"]) is None
+
+
+def test_user_model_trailing_flag_without_value():
+    assert _user_model(["fix typo", "--model"]) is None
 
 
 def test_extract_prompt_plain():
